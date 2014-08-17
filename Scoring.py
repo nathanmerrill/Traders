@@ -12,7 +12,7 @@ num_trades = 50
 amount_to_eat = 2
 num_products = 5
 good_letters = [chr(ord("A")+x) for x in xrange(num_products)]
-debug = False
+debug = __debug__
 num_games = 1 if debug else 50
 num_player_copies = 1 if debug else 5
 
