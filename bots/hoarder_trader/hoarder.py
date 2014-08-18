@@ -7,7 +7,7 @@ def current_goods():
 def parse_goods(good_string):
     try:
         return dict([(a, int(b))
-                     for a, b in [product.split("-")
+                     for b, a in [product.split("-")
                                   for product in good_string.split(",")]])
     except:
         raise IOError(good_string)
@@ -40,10 +40,10 @@ def readline():
     return line
 
 def output_goods(goods):
-    print ",".join([good+"-"+str(amount) for good, amount in goods.items()])
+    print ",".join([str(amount)+"-"+good for good, amount in goods.items()])
 
 def output_good(good, amount):
-    print good+"-"+str(amount)
+    print str(amount)+"-"+good
 
 def current_turn_is(turn):
     print "T"

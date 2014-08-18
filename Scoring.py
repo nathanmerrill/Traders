@@ -5,16 +5,21 @@ import random
 import select
 import time
 import copy
+import shlex
 
+debug = __debug__ #True by default, False if -O is passed to python.
+                  #Debug being true will print out communication to/from bot
+                  #Debug being false will execute the program for 50 games,
+                  #and create 5 duplicates of each bot
 total_points = 30
 min_points = 3
 num_trades = 50
 amount_to_eat = 2
 num_products = 5
 good_letters = [chr(ord("A")+x) for x in xrange(num_products)]
-debug = __debug__
 num_games = 1 if debug else 50
 num_player_copies = 1 if debug else 5
+
 
 class Communicator(object):
     ON_POSIX = 'posix' in sys.builtin_module_names
@@ -29,29 +34,29 @@ class Communicator(object):
     @classmethod
     def read_bot_list(cls):
         players = []
-        for dir in os.listdir(r"bots/"):
+        for d in os.listdir(r"bots/"):
             try:
-                file = open("bots/"+dir+"/command.txt", 'r')
+                f = open("bots/"+d+"/command.txt", 'r')
             except IOError:
                 continue
-            commands = file.read().splitlines()
-            file.close()
+            commands = f.read().splitlines()
+            f.close()
             if commands:
                 for command in commands[0:-1]:
-                    subprocess.call(command.split(" "), cwd="bots/"+dir+"/")
+                    subprocess.call(command.split(" "), cwd="bots/"+d+"/")
                 if cls.WINDOWS:
-                    commands[-1]=commands[-1].replace("./", "bots/"+dir+"/")
-                no_print = os.path.isfile("bots/"+dir+"/noprint")
-                players.append(Communicator(dir, commands[-1], no_print))
+                    commands[-1]=commands[-1].replace("./", "bots/"+d+"/")
+                no_print = os.path.isfile("bots/"+d+"/noprint")
+                players.append(Communicator(d, commands[-1], no_print))
         return players
 
     def __init__(self, bot_name, command, no_print):
         self.name = bot_name
         self.no_print = no_print
-        self.process = subprocess.Popen(command, stdout=subprocess.PIPE,
+        self.process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE,
                                         stdin=subprocess.PIPE, bufsize=1,
                                         close_fds=Communicator.ON_POSIX,
-                                        cwd="bots/"+self.name+"/")
+                                        cwd="bots/"+self.name+"/", shell=True)
         if not Communicator.WINDOWS:
             self.pollin = select.poll()
             self.pollin.register(self.process.stdin, select.POLLOUT)
@@ -212,7 +217,7 @@ class Good(object):
         self.amount = amount
 
     def __str__(self):
-        return str(chr(self.index+ord("A"))+"-"+str(self.amount))
+        return str(str(self.amount)+"-"+chr(self.index+ord("A")))
 
     def __cmp__(self, other):
         if isinstance(other, Goods):
@@ -222,7 +227,7 @@ class Good(object):
 
     @staticmethod
     def parse(string):
-        letter, amount = tuple(string.split("-"))
+        amount, letter = tuple(string.split("-"))
         return Good(ord(letter.upper())-ord("A"), int(amount))
 
 
