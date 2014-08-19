@@ -137,23 +137,30 @@ class Trader(object):
 
     def sell(self, buyer, market_size):
         seller = self
+        seller.communicator.send_message("T")
         seller_good = Good.parse(seller.prompt(
             "", "T", player_id=id(buyer), market_size=market_size))
+        products_accepts = Goods.parse(seller.prompt(
+            "", "T", player_id=id(buyer), market_size=market_size))
         if seller.total_goods < seller_good:
-            print seller.communicator.name + " wanted to sell too much"
+            print seller.communicator.name + " wanted to sell " + \
+                  str(seller_good) + " but only had "+ str(seller.total_goods)
+            buyer.skip()
             return
         if seller_good.amount <= 0:
             print seller.communicator.name + " wanted to sell too few"
+            buyer.skip()
             return
-        products_accepts = Goods.parse(seller.prompt(
-            "", "T", player_id=id(buyer), market_size=market_size))
         if not products_accepts:
             print seller.communicator.name +" didn't accept any products"
+            buyer.skip()
             return
         for product in products_accepts:
             if product.amount < 0:
                 print seller.communicator.name +" accepted a negative product"
+                buyer.skip()
                 return
+        buyer.communicator.send_message("T")
         buyer.communicator.send_message(seller_good)
         to_buy = buyer.prompt(products_accepts, "T",
                               player_id=id(seller), market_size=market_size)
@@ -161,10 +168,14 @@ class Trader(object):
             return
         buyer_good = products_accepts[to_buy]
         if buyer.total_goods < buyer_good:
-            print buyer.communicator.name + " tried to trade too much"
+            print buyer.communicator.name + "tried to trade " + str(buyer_good)\
+                  + " but only had "+str(buyer.total_goods)
             return
         seller.transfer_good_to(buyer, seller_good)
         buyer.transfer_good_to(seller, buyer_good)
+
+    def skip(self):
+        self.communicator.send_message("S")
 
     def transfer_good_to(self, trader, good):
         self.total_goods -= good
@@ -306,8 +317,6 @@ def kill_traders():
             random.shuffle(buyers)
             random.shuffle(sellers)
             for seller, buyer in zip(sellers, buyers):
-                seller.communicator.send_message("T")
-                buyer.communicator.send_message("T")
                 seller.sell(buyer, len(market_traders))
             extras = []
             if len(sellers) > len(buyers):
@@ -315,8 +324,7 @@ def kill_traders():
             elif len(buyers) > len(sellers):
                 extras = buyers[len(sellers):]
             for extra in extras:
-                extra.communicator.send_message("S")
-
+                extra.skip()
         for trader in alive_traders[:]:
             trader.eat()
             if not trader.alive:
