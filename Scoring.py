@@ -7,7 +7,7 @@ import time
 import copy
 import shlex
 
-debug = __debug__ #True by default, False if -O is passed to python.
+debug = __debug__  #True by default, False if -O is passed to python.
                   #Debug being true will print out communication to/from bot
                   #Debug being false will execute the program for 50 games,
                   #and create 5 duplicates of each bot
@@ -32,7 +32,7 @@ class Communicator(object):
         pass
 
     @classmethod
-    def read_bot_list(cls):
+    def read_bot_list(cls, initial):
         players = []
         for d in os.listdir(r"bots/"):
             try:
@@ -42,8 +42,9 @@ class Communicator(object):
             commands = f.read().splitlines()
             f.close()
             if commands:
-                for command in commands[0:-1]:
-                    subprocess.call(command.split(" "), cwd="bots/"+d+"/")
+                if initial:
+                    for command in commands[0:-1]:
+                        subprocess.call(command.split(" "), cwd="bots/"+d+"/")
                 if cls.WINDOWS:
                     commands[-1]=commands[-1].replace("./", "bots/"+d+"/")
                 no_print = os.path.isfile("bots/"+d+"/noprint")
@@ -95,12 +96,16 @@ class Communicator(object):
                 while not self.pollin.poll(0):
                     time.sleep(0.1)
                 self.process.stdin.write(message+"\n")
-                if debug and not self.no_print: print "sent message to " + self.name
+                if debug and not self.no_print:
+                    print "sent message to " + self.name
         except RuntimeError:
-            if debug and not self.no_print: print "gave up on " + self.name
+            if debug and not self.no_print:
+                print "gave up on " + self.name
             raise RuntimeError(self.name+
                                " didn't accept a message within one second")
 
+    def kill(self):
+        self.process.kill()
 
 class Trader(object):
     MarketActions = LeaveMarket, Buy, Sell = range(3)
@@ -138,10 +143,19 @@ class Trader(object):
     def sell(self, buyer, market_size):
         seller = self
         seller.communicator.send_message("T")
-        seller_good = Good.parse(seller.prompt(
-            "", "T", player_id=id(buyer), market_size=market_size))
-        products_accepts = Goods.parse(seller.prompt(
-            "", "T", player_id=id(buyer), market_size=market_size))
+        try:
+            seller_good = Good.parse(seller.prompt(
+                "", "T", player_id=id(buyer), market_size=market_size))
+        except:
+            print "Failed to parse seller good from "+seller.communicator.name
+            raise
+        try:
+            products_accepts = Goods.parse(seller.prompt(
+                "", "T", player_id=id(buyer), market_size=market_size))
+        except:
+            print "Failed to parse seller accepted products from "\
+                  + seller.communicator.name
+            raise
         if seller.total_goods < seller_good:
             print seller.communicator.name + " wanted to sell " + \
                   str(seller_good) + " but only had "+ str(seller.total_goods)
@@ -168,7 +182,7 @@ class Trader(object):
             return
         buyer_good = products_accepts[to_buy]
         if buyer.total_goods < buyer_good:
-            print buyer.communicator.name + "tried to trade " + str(buyer_good)\
+            print buyer.communicator.name + " tried to trade " + str(buyer_good)\
                   + " but only had "+str(buyer.total_goods)
             return
         seller.transfer_good_to(buyer, seller_good)
@@ -352,8 +366,13 @@ if __name__ == "__main__":
         for _ in xrange(num_player_copies):
             traders.extend([Trader(communicator=communicator,
                                    base_productivity=base_productivity)
-                            for communicator in Communicator.read_bot_list()])
-        kill_traders()
+                            for communicator in Communicator.read_bot_list(game==0)])
+        try:
+            kill_traders()
+        except:
+            for trader in traders:
+                trader.communicator.kill()
+            raise
         for trader in traders:
             if trader.communicator.name not in total_scores:
                 total_scores[trader.communicator.name] = trader.years_lived
